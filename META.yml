@@ -23,14 +23,13 @@ requires:
   Class::Data::ConfigHash: 0
   Encode: 0
   Encode::Guess: 0
-  Filter::Util::Call: 0
   JSON: 0
   POE: 0
   POE::Component::Server::TCP: 0
   POE::Filter::Line: 0
   POE::Sugar::Args: 0
-  POE::XS::Loop::Epoll: 0
+  POE::XS::Loop::EPoll: 0
   UNIVERSAL::require: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.00001
+version: 0.00002
