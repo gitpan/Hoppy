@@ -32,47 +32,47 @@ sub delete_room {
 }
 
 sub login {
-    my $self = shift;
-    my $args = shift;
-    my $poe  = shift;
-
+    my $self   = shift;
+    my $args   = shift;
+    my $poe    = shift;
+    my $c      = $self->context;
+    my $result = 1;
+    if ( $c->service->{auth_login} ) {
+        $result = $c->service->{auth_login}->work( $args, $poe );
+        return 0 unless $result;
+    }
     my $user_id    = $args->{user_id};
     my $password   = $args->{password};
     my $session_id = $args->{session_id};
     my $room_id    = $args->{room_id} || 'global';
-
-    my $c = $self->context;
-
-    if ( $c->service->{auth} ) {
-        my $result = $c->service->{auth}->work( $args, $poe );
-        return 0 unless $result;
-    }
     delete $c->{not_authorized}->{$session_id};
-
     my $user = Hoppy::User->new(
         user_id    => $user_id,
         session_id => $session_id
     );
-
     $self->{rooms}->{$room_id}->{$user_id} = $user;
     $self->{where_in}->{$user_id}          = $room_id;
     $self->{sessions}->{$session_id}       = $user_id;
-    return 1;
+    return $result;
 }
 
 sub logout {
-    my $self = shift;
-    my $args = shift;
-    my $poe  = shift;
-
+    my $self   = shift;
+    my $args   = shift;
+    my $poe    = shift;
+    my $c      = $self->context;
+    my $result = 1;
+    if ( $c->service->{auth_logout} ) {
+        $result = $c->service->{auth_logout}->work( $args, $poe );
+        return 0 unless $result;
+    }
     my $user_id = $args->{user_id};
     my $user    = $self->fetch_user_from_user_id($user_id);
-
     delete $self->{sessions}->{ $user->session_id };
     my $room_id = delete $self->{where_in}->{$user_id};
     delete $self->{rooms}->{$room_id}->{$user_id};
     $self->context->{not_authorized}->{ $user->session_id } = 1;
-    return 1;
+    return $result;
 }
 
 sub fetch_user_from_user_id {
@@ -129,36 +129,6 @@ Hoppy::Room::Memory - Room on memory. It manages users and their sessions.
 
 Room on memory. It manages users and their sessions.
 
-=head1 METHODS
-
-=head2 new
-
-=head2 regist_service( $service_label => $service_class )
-
-=head2 start
-
-=head2 stop
-
-=head2 unicast( $user_id, $message )
-
-=head2 multicast( $sender_session_id, $room_id, $message )
-
-=head2 broadcast( $sender_session_id, $message )
-
-=head2 dispatch($method, $params, $poe)
-
-=head1 AUTHOR
-
-Takeshi Miki E<lt>miki@cpan.orgE<gt>
-
-=head1 LICENSE
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
-
-=head1 SEE ALSO
-
-=cut
 =head1 METHODS
 
 =head2 new

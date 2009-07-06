@@ -11,9 +11,9 @@ use UNIVERSAL::require;
 use Carp;
 use base qw(Hoppy::Base);
 
-__PACKAGE__->mk_accessors($_) for qw(handler formatter service room);
+__PACKAGE__->mk_accessors($_) for qw(handler formatter service hook room);
 
-our $VERSION = '0.00002';
+our $VERSION = '0.01001';
 
 sub new {
     my $class = shift;
@@ -24,6 +24,13 @@ sub new {
 
 sub start {
     my $self = shift;
+    if ( ref $self->hook eq 'ARRAY' ) {
+        for my $hook ( @{ $self->hook } ) {
+            my $obj  = $hook->[0];
+            my $args = $hook->[1];
+            $obj->work($args);
+        }
+    }
     POE::Kernel->run;
 }
 
@@ -33,37 +40,37 @@ sub stop {
 }
 
 sub dispatch {
-    my $self   = shift;
-    my $method = shift;
-    my $params = shift;
-    my $poe    = shift;
-
+    my $self    = shift;
+    my $in_data = shift;
+    my $poe     = shift;
     my $session_id = $poe->session->ID;
-
+    my $method = $in_data->{method};
     if ( $method eq 'login' ) {
-        $self->service->{login}->work( $params, $poe );
+        my $args = { in_data => $in_data, poe => $poe }; 
+        $self->service->{login}->work($args);
     }
     elsif ( $self->{not_authorized}->{$session_id} ) {
         my $message    = "not authorized. you have to login()";
-        my $data       = { result => "", "error" => $message };
-        my $serialized = $self->formatter->serialize($data);
+        my $out_data   = { result => "", "error" => $message };
+        my $serialized = $self->formatter->serialize($out_data);
         $self->handler->{Send}->do_handle( $poe, $serialized );
     }
     else {
         my $user = $self->room->fetch_user_from_session_id($session_id);
         return unless $user;
         my $user_id = $user->user_id;
-        my %args = ( user_id => $user_id, params => $params );
-        $self->service->{$method}->work( \%args, $poe );
+        my $args = { user_id => $user_id, in_data => $in_data, poe => $poe };
+        $self->service->{$method}->work( $args );
     }
 }
 
 sub unicast {
     my $self       = shift;
-    my %args       = @_;
-    my $user_id    = $args{user_id};
-    my $message    = $args{message};
-    my $session_id = $self->room->fetch_user_from_user_id($user_id)->session_id;
+    my $args       = shift;
+    my $user_id    = $args->{user_id};
+    my $message    = $args->{message};
+    my $session_id = $args->{session_id}
+      || $self->room->fetch_user_from_user_id($user_id)->session_id;
     $poe_kernel->post( $session_id => "Send" => $message );
 }
 
@@ -102,20 +109,43 @@ sub regist_service {
         unless ( ref($class) ) {
             $class->require or die $@;
             my $obj = $class->new( context => $self );
-            $self->handler->{$label} = $obj;
+            $self->service->{$label} = $obj;
         }
         else {
-            $self->handler->{$label} = $class;
+            $self->service->{$label} = $class;
+        }
+    }
+}
+
+sub regist_hook {
+    my $self = shift;
+    $self->hook( [] );
+    while (@_) {
+        my $class = shift @_;
+        my $args = shift @_ || {};
+        unless ( ref($class) ) {
+            $class->require or die $@;
+            my $obj = $class->new( context => $self );
+            push( @{ $self->hook }, [ $obj, $args ] );
+        }
+        else {
+            push( @{ $self->hook }, [ $class, $args ] );
         }
     }
 }
 
 sub _setup {
     my $self = shift;
-
     $self->_load_classes;
+    my $filter = POE::Filter::Line->new( Literal => "\x00" );
+    if ( $self->config->{test} and $self->config->{test} == 1 ) {
+        $filter = undef;
+    }
+    elsif ( $self->config->{test} and $self->config->{test} == 2 ) {
+        Hoppy::TestFilter->require or croak $@;
+        $filter = Hoppy::TestFilter->new($self);
+    }
 
-    my $filter = POE::Filter::Line->new( Literal => "\x00" ) unless $self->config->{test};
     POE::Component::Server::TCP->new(
         Alias => $self->config->{alias} || 'xmlsocketd',
         Port  => $self->config->{port}  || 10000,
@@ -208,6 +238,7 @@ Hoppy - Flash XMLSocket Server.
   my $config = {
     alias => 'hoppy',
     port  => 12345,
+    test  => 1,      # does not work POE::Filter::Line ( use it as telnet when debug phaze )
   };
 
   my $server = Hoppy->new(config => $config);
@@ -229,15 +260,17 @@ Hoppy is a perl implementation of Flash XMLSocket Server.
 
 =head2 regist_service( $service_label => $service_class )
 
+=head2 regist_hook( $hook_class => $args )
+
 =head2 start
 
 =head2 stop
 
-=head2 unicast( $user_id, $message )
+=head2 unicast( { user_id => $user_id, messge => $message } )
 
-=head2 multicast( $sender_session_id, $room_id, $message )
+=head2 multicast( { sender => $sender_session_id, room_id => $room_id, message => $message } )
 
-=head2 broadcast( $sender_session_id, $message )
+=head2 broadcast( { sender => $sender_session_id, message => $message } )
 
 =head2 dispatch($method, $params, $poe)
 
