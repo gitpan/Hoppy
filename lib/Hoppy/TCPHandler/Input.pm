@@ -8,19 +8,13 @@ sub do_handle {
     my $poe   = shift;
     my $c     = $self->context;
     my $input = $poe->args->[0];
+
     if ( $input =~ /policy-file-request/ ) {
         my $xml = $self->cross_domain_policy_xml;
         $c->handler->{Send}->do_handle( $poe, $xml );
     }
     elsif ( $input =~ /^exit(\x00)*/ ) {
-        my $session_id = $poe->session->ID;
-        my $user       = $c->room->fetch_user_from_session_id($session_id);
-        if ($user) {
-            $c->room->logout( { user_id => $user->user_id }, $poe );
-        }
-        delete $c->{sessions}->{$session_id};
-        delete $c->{not_authorized}->{$session_id};
-        $poe->kernel->yield("shutdown");
+        $c->handler->{Disconnected}->do_handle($poe);
     }
     else {
         my $in_data = '';
@@ -31,6 +25,10 @@ sub do_handle {
         else {
             $c->dispatch( $in_data, $poe );
         }
+    }
+
+    if ( my $hook = $c->hook->{client_input} ) {
+        $hook->work( { poe => $poe } );
     }
 }
 

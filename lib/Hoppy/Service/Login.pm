@@ -32,13 +32,11 @@ sub work {
     if ( $in_data->{id} ) {
         ## set out_data
         my $out_data = {};
-        $out_data->{id} = $in_data->{id};
         if ($result) {
             $out_data = {
                 result => {
-                    method_name => "login",
-                    login_id    => $args->{user_id},
-                    login_time  => time()
+                    login_id   => $args->{user_id},
+                    login_time => time()
                 },
                 error => ""
             };
@@ -46,6 +44,7 @@ sub work {
         else {
             $out_data = { result => "", error => "login failed" };
         }
+        $out_data->{id} = $in_data->{id};
         ## respond it
         my $serialized = $c->formatter->serialize($out_data);
         $c->unicast(
@@ -55,6 +54,9 @@ sub work {
                 message    => $serialized
             }
         );
+    }
+    if ( my $hook = $c->hook->{login} ) {
+        $hook->work($args);
     }
 }
 1;

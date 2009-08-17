@@ -4,7 +4,22 @@ use warnings;
 use base qw( Hoppy::Base );
 
 sub do_handle {
-    my $self = shift;
+    my $self       = shift;
+    my $poe        = shift;
+    my $c          = $self->context;
+    my $session_id = $poe->session->ID;
+    my $user       = $c->room->fetch_user_from_session_id($session_id);
+    my $user_id;
+    if ($user) {
+        $user_id = $user->user_id;
+        $c->room->logout( { user_id => $user_id }, $poe );
+    }
+    delete $c->{sessions}->{$session_id};
+    delete $c->{not_authorized}->{$session_id};
+    $poe->kernel->yield("shutdown");
+    if ( my $hook = $c->hook->{client_disconnected} ) {
+        $hook->work( { poe => $poe, user_id => $user_id } );
+    }
 }
 
 1;
