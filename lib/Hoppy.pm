@@ -13,7 +13,7 @@ use base qw(Hoppy::Base);
 
 __PACKAGE__->mk_accessors($_) for qw(handler formatter service hook room);
 
-our $VERSION = '0.01003';
+our $VERSION = '0.01004';
 
 sub new {
     my $class = shift;
@@ -212,18 +212,13 @@ sub _load_classes {
     # default hook
     {
         $self->hook( {} );
-        my @hooks = ();
         if ( $self->config->{regist_hooks} ) {
-            while ( my ( $key, $value ) =
+            while ( my ( $label, $class ) =
                 each %{ $self->config->{regist_hooks} } )
             {
-                push @hooks, { $key => $value };
+                $class->require or croak $@;
+                $self->hook->{$label} = $class->new( context => $self );
             }
-        }
-        for (@hooks) {
-            my ( $label, $class ) = %$_;
-            $class->require or croak $@;
-            $self->hook->{$label} = $class->new( context => $self );
         }
     }
 
