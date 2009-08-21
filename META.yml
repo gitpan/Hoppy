@@ -25,6 +25,7 @@ requires:
   EV: 0
   Encode: 0
   Encode::Guess: 0
+  Filter::Util::Call: 0
   JSON: 0
   POE: 0
   POE::Component::Server::TCP: 0
@@ -33,4 +34,4 @@ requires:
   UNIVERSAL::require: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01004
+version: 0.01005
